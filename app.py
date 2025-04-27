@@ -10,7 +10,7 @@ from models import db, OptionData, Strategy, StrategyLeg, populate_initial_data 
 from strategy_defs import STRATEGY_DETAILS # I
 # app.py (or a new utils.py)
 from openai import OpenAI, APITimeoutError, APIConnectionError, RateLimitError, APIStatusError # Import specific errors
-
+import traceback
 # --- Initialize OpenAI Client ---
 # Best practice: Initialize once if possible. 
 
@@ -114,7 +114,7 @@ def identify_strategy_with_llm(legs):
         qty = int(leg.quantity) # Assume integer quantity for display
         if leg.leg_type == 'underlying':
             prompt_legs.append(f"  - {direction} {qty * 100} Underlying Shares") # Assuming qty is units of 100
-        elif leg.leg_type == 'option' and leg.option:
+        elif leg.option:
             option_type = leg.option.option_type.capitalize()
             strike = leg.option.strike_price
             prompt_legs.append(f"  - {direction} {qty} {option_type} K={strike}")
@@ -217,8 +217,8 @@ def identify_strategy_type(legs, use_llm_fallback=True): # Add flag
     else:
         # --- Data Preparation (DEFINITIONS WERE MISSING HERE) ---
         underlying_legs = [leg for leg in legs if leg.leg_type == 'underlying']
-        option_legs = [leg for leg in legs if leg.leg_type != 'underlying'] # Ensure option data exists
-        print(option_legs[0])
+        option_legs = [leg for leg in legs if leg.option is not None] # Ensure option data exists
+        
         # Sort option legs primarily by type (call then put), then by strike
         option_legs.sort(key=lambda leg: (leg.option.option_type, leg.option.strike_price))
 
@@ -512,6 +512,13 @@ def list_strategies():
 
             if not strategy.legs: # Handle strategies with no legs (shouldn't happen with current save logic, but good check)
                 calculation_possible = False
+            for item in strategy.legs:
+                if item.leg_type != 'underlying':
+                    option_data = db.session.get(OptionData, item.option_data_id)
+                    item.option = option_data
+                else:
+                    item.option = None
+            
             strategy_info = identify_strategy_type(strategy.legs, use_llm_fallback=True)
             for leg in strategy.legs:
                 # Determine multiplier based on direction
@@ -534,7 +541,7 @@ def list_strategies():
                     net_delta += leg_delta
                     # Others are 0
 
-                elif leg.leg_type == 'call' or leg.leg_type == 'put':
+                elif leg.option:
                     option_data = db.session.get(OptionData, leg.option_data_id)
                     if option_data is None:
                         legs_details.append(f"{int(leg.quantity)} x {leg.direction.upper()} [Option ID {leg.option_data_id} NOT FOUND]")
@@ -590,6 +597,7 @@ def list_strategies():
 
     except Exception as e:
         print(f"Error fetching or processing strategies: {e}")
+        print(traceback.format_exc())
         # Render template with an error message (optional)
         flash(f"Error loading strategies: {e}", "danger")
         return render_template('list_strategies.html', strategies_data=[], error=str(e))
