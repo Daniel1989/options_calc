@@ -55,6 +55,11 @@
     </style>
 </head>
 <body>
+    <nav>
+        <a href="{{ url_for('index') }}">Calculator</a>
+        <a href="{{ url_for('list_options') }}">View Options</a>
+        <a href="{{ url_for('list_strategies') }}">View Strategies</a>
+    </nav>
     <div class="container">
         <h1>Calculate Option Theoretical Price</h1>
         <p>Using Black-Scholes-Merton Model (European Options, No Dividends)</p>

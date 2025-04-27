@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Saved Strategies</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; /* Helps control column width */}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; word-wrap: break-word; /* Wrap long text */}
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        nav { margin-bottom: 20px; }
+        nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+        .legs-list { list-style: none; padding: 0; margin: 0; font-size: 0.9em; }
+        .legs-list li { margin-bottom: 3px; }
+        .error-message { color: red; font-style: italic; font-size: 0.9em; }
+        .number-cell { text-align: right; } /* Align numbers to the right */
+
+        /* Approx column widths - adjust as needed */
+        col.col-id { width: 4%; }
+        col.col-name { width: 15%;} /* New Column */
+        col.col-legs { width: 26%; }
+        col.col-theory { width: 9%;}
+        col.col-greek { width: 8%; }
+        col.col-created { width: 14%;}
+
+        /* Style for clickable strategy name */
+        .strategy-name-link {
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .strategy-name-link:hover {
+            color: #0056b3;
+        }
+
+        /* Styles for the details panel */
+        .details-panel {
+            border: 1px solid #ccc;
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            position: relative; /* Or sticky/fixed if desired */
+        }
+        .details-panel h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        .details-panel p {
+            margin-bottom: 8px;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+        .details-panel strong {
+             display: inline-block;
+             width: 70px; /* Align labels */
+             font-weight: bold;
+        }
+        .details-panel .close-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 3px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+         .details-panel .close-button:hover {
+            background: #c82333;
+         }
+
+        .hidden {
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Saved Strategies</h1>
+
+    <nav>
+        <a href="{{ url_for('index') }}">Calculator</a>
+        <a href="{{ url_for('list_options') }}">View Options</a>
+        <a href="{{ url_for('list_strategies') }}">View Strategies</a>
+    </nav>
+
+     <!-- Optional: Display general errors passed from the route -->
+    {% if error %}
+        <p class="error-message">Error loading page: {{ error }}</p>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div> {# Assumes .flash styles exist #}
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div id="strategy-details-panel" class="details-panel hidden">
+        <button id="close-details-panel" class="close-button">关闭 [X]</button>
+        <h3 id="details-name">策略详情</h3>
+        <p><strong>描述:</strong> <span id="details-description"></span></p>
+        <p><strong>示例:</strong> <span id="details-example"></span></p>
+        <p><strong>适用场景:</strong> <span id="details-scenarios"></span></p>
+    </div>
+
+        <table id="strategies-table"> <!-- Added ID for easier JS targeting -->
+
+        <colgroup>
+             <col class="col-id">
+             <col class="col-name"> <!-- New Col -->
+
+             <col class="col-created">
+             <col class="col-legs">
+             <col class="col-theory"> <!-- Add col definition -->
+
+             <col class="col-greek">
+             <col class="col-greek">
+             <col class="col-greek">
+             <col class="col-greek">
+             <col class="col-greek">
+        </colgroup>
+        <thead>
+            <tr>
+                <th title="【策略ID】数据库中保存的策略的唯一编号。用于区分不同的策略记录。例如：5">
+                    ID
+                </th>
+                <th title="【策略名称】根据策略构成自动识别的标准期权策略名称。">Name</th> <!-- New Header -->
+
+                <th title="【创建时间】该策略组合保存到系统数据库的具体日期和时间。例如：2023-10-27 14:30">
+                    Created At
+                </th>
+                <th title="【策略构成】构成该策略的具体金融工具（期权合约或标的股票）列表。包含每个头寸的方向（多头/买入 或 空头/卖出）、数量以及期权的行权价。例如：一个牛市看涨价差可能包含 '10 x LONG Call K=100' 和 '10 x SHORT Call K=110'。">
+                    Strategy Legs (Position)
+                </th>
+                <th class="number-cell" title="【净理论价值】策略中所有期权部分（不含标的资产）根据理论定价模型（如B-S模型）计算出的净价值总和。多头期权贡献正价值，空头期权贡献负价值。例如：若买入10份理论价值为5.44的看涨期权，同时卖出10份理论价值为1.90的看涨期权，则净理论价值为 (10 * 5.44) - (10 * 1.90) = 35.40。">
+                    Net Theo. Val
+                </th>
+                <th class="number-cell" title="【净Delta值】整个策略组合的总价值相对于标的资产价格每变动1个单位（例如$1）时的预期价值变化量。正数表示策略倾向于在标的价格上涨时获利，负数则在下跌时获利。例如：若一个策略包含空头10份Delta为56的看涨期权和多头10份Delta为-44的看跌期权，则净Delta = (-10 * 56) + (10 * -44) = -560 - 440 = -1000。这意味着标的资产价格每上涨$1，策略价值预期下降$1000 (假设每个期权Delta值对应合约价值变化)。另一种常见单位是，若净Delta为120 (基于合约单位，如多头跨式)，表示标的涨$1，策略价值增$120。">
+                    Net Delta
+                </th>
+                <th class="number-cell" title="【净Gamma值】策略的净Delta值相对于标的资产价格每变动1个单位（例如$1）时的变化率。衡量策略Delta变化的快慢。正Gamma表示策略的Delta会随标的价格上涨而增加（或随下跌而减少），负Gamma则相反。例如：若一个多头跨式策略Gamma为+64，表示标的资产价格每上涨$1，策略的净Delta值将增加约64。这意味着策略在价格大幅波动时Delta变化更快。">
+                    Net Gamma
+                </th>
+                <th class="number-cell" title="【净Theta值】策略的总价值因时间流逝而发生的变化率，通常表示为每天的价值变化。正Theta表示策略倾向于随时间推移而增值（时间收益），负Theta表示随时间推移而贬值（时间损耗）。例如：若一个空头期权组合（如Covered Call）的Theta为+0.34，表示在其他条件不变的情况下，该策略每天预期会因时间流逝而增值$0.34。">
+                    Net Theta
+                </th>
+                <th class="number-cell" title="【净Vega值】策略的总价值相对于标的资产隐含波动率每变动1个百分点（例如从25%到26%）时的预期价值变化量。正Vega表示策略受益于波动率上升，负Vega则受益于波动率下降。例如：若一个多头跨式策略（买入Call和Put）的Vega为+3.92，表示隐含波动率每上升1%，策略的总价值预期会增加$3.92。">
+                    Net Vega
+                </th>
+                <th class="number-cell" title="【净Rho值】策略的总价值相对于无风险利率每变动1个百分点（例如从6%到7%）时的预期价值变化量。看涨期权通常具有正Rho，看跌期权通常具有负Rho，该效应在长期期权中更显著。例如：若一个空头看涨期权组合的Rho为-1.55，表示无风险利率每上升1%，策略的总价值预期会下降$1.55。">
+                    Net Rho
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for strategy in strategies_data %}
+            <tr>
+                <td>{{ strategy.id }}</td>
+                <td>
+                    <span class="strategy-name-link"
+                          data-name-cn="{{ strategy.strategy_info.name_cn }}"
+                          data-description="{{ strategy.strategy_info.description }}"
+                          data-example="{{ strategy.strategy_info.example }}"
+                          data-scenarios="{{ strategy.strategy_info.scenarios }}"
+                          title="点击查看详情"> {# Basic tooltip indicating clickability #}
+                        {{ strategy.strategy_info.name_cn }}
+                    </span>
+                </td>
+                <td>{{ strategy.created_at.strftime('%Y-%m-%d %H:%M') if strategy.created_at else 'N/A' }}</td>
+                <td>
+                    <ul class="legs-list">
+                        {% for leg_detail in strategy.legs_details %}
+                            <li>{{ leg_detail }}</li>
+                        {% endfor %}
+                         {% if not strategy.calculation_possible and strategy.legs_details %}
+                            <li><em class="error-message">(Calculation incomplete due to missing data)</em></li>
+                         {% endif %}
+                    </ul>
+                </td>
+                {% if strategy.calculation_possible %}
+                    <td class="number-cell">{{ "%.1f"|format(strategy.net_theoretical_value) if strategy.net_theoretical_value is not none else 'N/A' }}</td>
+                    <td class="number-cell">{{ "%.1f"|format(strategy.net_delta) if strategy.net_delta is not none else 'N/A' }}</td>
+                    <td class="number-cell">{{ "%.1f"|format(strategy.net_gamma) if strategy.net_gamma is not none else 'N/A' }}</td>
+                    <td class="number-cell">{{ "%.3f"|format(strategy.net_theta) if strategy.net_theta is not none else 'N/A' }}</td>
+                    <td class="number-cell">{{ "%.3f"|format(strategy.net_vega) if strategy.net_vega is not none else 'N/A' }}</td>
+                    <td class="number-cell">{{ "%.3f"|format(strategy.net_rho) if strategy.net_rho is not none else 'N/A' }}</td>
+                 {% else %}
+                    <td colspan="5" class="error-message" style="text-align: center;">Calculation not possible</td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" style="text-align: center;">No strategies saved yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <script>
+        // --- DOM Elements ---
+        const detailsPanel = document.getElementById('strategy-details-panel');
+        const detailsName = document.getElementById('details-name');
+        const detailsDescription = document.getElementById('details-description');
+        const detailsExample = document.getElementById('details-example');
+        const detailsScenarios = document.getElementById('details-scenarios');
+        const closeDetailsButton = document.getElementById('close-details-panel');
+        const strategiesTableBody = document.querySelector('#strategies-table tbody'); // Target table body
+
+        // --- Event Listeners ---
+
+        // Use event delegation on the table body
+        strategiesTableBody.addEventListener('click', function(event) {
+            // Check if the clicked element or its parent is the link
+            const targetLink = event.target.closest('.strategy-name-link'); 
+            if (targetLink) {
+                showStrategyDetails(targetLink);
+            }
+        });
+
+        closeDetailsButton.addEventListener('click', hideStrategyDetails);
+
+        // --- Functions ---
+        function showStrategyDetails(element) {
+            // Get data from the clicked element's data attributes
+            const nameCn = element.dataset.nameCn;
+            const description = element.dataset.description;
+            const example = element.dataset.example;
+            const scenarios = element.dataset.scenarios;
+
+            // Populate the details panel
+            detailsName.textContent = nameCn || '策略详情'; // Use Chinese name as title
+            detailsDescription.textContent = description || 'N/A';
+            detailsExample.textContent = example || 'N/A';
+            detailsScenarios.textContent = scenarios || 'N/A';
+
+            // Show the panel
+            detailsPanel.classList.remove('hidden');
+
+             // Optional: Scroll to the panel if it's out of view
+             detailsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function hideStrategyDetails() {
+            detailsPanel.classList.add('hidden');
+        }
+
+    </script>
+
+</body>
+</html>

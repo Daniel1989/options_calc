@@ -53,7 +53,7 @@ class StrategyLeg(db.Model):
     def __repr__(self):
         details = f"Type={self.leg_type} Qty={self.quantity} Dir={self.direction}"
         if self.leg_type != 'underlying':
-            details += f" OptionID={self.option_data_id} K={self.strike_price}"
+            details += f" OptionDataID={self.option_data_id} K={self.strike_price}"
         return f"<StrategyLeg ID={self.id} StrategyID={self.strategy_id} {details}>"
     
 # Helper function to add initial data
