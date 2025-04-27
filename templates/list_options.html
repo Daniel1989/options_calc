@@ -296,6 +296,11 @@
             closeOptionModal(); // Ensure option modal is closed if open
             updateUIForStrategyMode();
             updateStrategyDisplay(); // Clear display
+
+            createBtn.classList.toggle('hidden', false);
+            finalizeBtn.classList.toggle('hidden', true);
+            cancelBtn.classList.toggle('hidden', true);
+            strategyDisplay.classList.toggle('hidden', true);
         }
 
         function finalizeStrategy() {
@@ -331,6 +336,11 @@
                 if (data.success) {
                     alert(`Strategy saved successfully! ID: ${data.strategy_id}`);
                     cancelStrategyCreation(); // Reset UI on success
+
+                    createBtn.classList.toggle('hidden', false);
+                    finalizeBtn.classList.toggle('hidden', true);
+                    cancelBtn.classList.toggle('hidden', true);
+                    strategyDisplay.classList.toggle('hidden', true);
                 } else {
                     // Display error message from server
                     alert(`Error saving strategy: ${data.message}`);
