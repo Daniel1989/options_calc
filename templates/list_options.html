@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Option Data Listing</title>
+    <style>
+        /* --- Basic Styles (Keep as before) --- */
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        nav { margin-bottom: 20px; }
+        nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .flash.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .flash.danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        
+        /* --- New Styles for Strategy Creation --- */
+        .action-button { 
+            text-decoration: none; 
+            color: white; 
+            padding: 5px 10px; 
+            border-radius: 3px;
+            cursor: pointer;
+            border: none;
+            font-size: 0.9em;
+            margin-left: 5px; /* Add some space */
+        }
+        .edit-button { background-color: #007bff; } /* Blue */
+        .add-strategy-button { background-color: #28a745; } /* Green */
+        .create-strategy-button { background-color: #17a2b8; } /* Teal */
+        .finalize-strategy-button { background-color: #ffc107; color: black; } /* Yellow */
+        .cancel-strategy-button { background-color: #6c757d; } /* Gray */
+
+        .hidden { display: none; } /* Utility class to hide elements */
+
+        .strategy-controls { margin-bottom: 15px; padding: 10px; background-color: #e9ecef; border-radius: 4px;}
+        #current-strategy-display { margin-top: 10px; border: 1px dashed #ccc; padding: 10px; min-height: 50px; }
+        #current-strategy-display ul { list-style: none; padding: 0; margin: 0; }
+        #current-strategy-display li { margin-bottom: 5px; font-size: 0.9em; }
+        #current-strategy-display li .remove-item { color: red; margin-left: 10px; cursor: pointer; font-weight: bold;}
+
+
+        /* --- Modal Styles --- */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more specific */
+            max-width: 400px;
+            border-radius: 5px;
+        }
+        .modal-close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .modal-close:hover,
+        .modal-close:focus {
+            color: black;
+            text-decoration: none;
+        }
+        .modal label { display: block; margin-bottom: 5px; }
+        .modal input[type="number"], .modal select { width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; }
+        .modal button { padding: 10px 15px; border-radius: 3px; cursor: pointer; border: none; }
+        .modal-confirm { background-color: #28a745; color: white; }
+        .modal-cancel { background-color: #6c757d; color: white; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Stored Option Data</h1>
+
+    <nav>
+        <a href="{{ url_for('index') }}">Calculator</a>
+        <a href="{{ url_for('list_options') }}">View Options</a>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Strategy Controls Area -->
+    <div class="strategy-controls">
+        <button id="create-strategy" class="action-button create-strategy-button">Create Strategy</button>
+        <button id="finalize-strategy" class="action-button finalize-strategy-button hidden">Finalize Strategy</button>
+        <button id="cancel-strategy" class="action-button cancel-strategy-button hidden">Cancel</button>
+        <div id="current-strategy-display" class="hidden">
+            <strong>Current Strategy:</strong>
+            <ul id="strategy-items-list">
+                <!-- Strategy items will be added here by JS -->
+            </ul>
+        </div>
+    </div>
+
+    <!-- Options Table -->
+    <table id="options-table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Strike (K)</th>
+                <th>Market Price</th>
+                <th>Theoretical</th>
+                <th>Delta</th>
+                <th>Gamma</th>
+                <th>Theta</th>
+                <th>Vega</th>
+                <th>Rho</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for option in options %}
+            <tr>
+                <td>{{ option.option_type | capitalize }}</td>
+                <td>{{ option.strike_price }}</td>
+                <td>{{ "%.2f"|format(option.market_price) if option.market_price is not none else 'N/A' }}</td>
+                <td>{{ "%.2f"|format(option.theoretical_value) if option.theoretical_value is not none else 'N/A' }}</td>
+                <td>{{ option.delta if option.delta is not none else 'N/A' }}</td>
+                <td>{{ option.gamma if option.gamma is not none else 'N/A' }}</td>
+                <td>{{ "%.3f"|format(option.theta) if option.theta is not none else 'N/A' }}</td>
+                <td>{{ "%.3f"|format(option.vega) if option.vega is not none else 'N/A' }}</td>
+                <td>{{ "%.3f"|format(option.rho) if option.rho is not none else 'N/A' }}</td>
+                <td>
+                    <!-- Edit Button (Always Visible) -->
+                    <a href="{{ url_for('edit_option', option_id=option.id) }}" class="action-button edit-button">Edit</a>
+                    <!-- Add to Strategy Button (Initially Hidden) -->
+                    <button class="action-button add-strategy-button hidden"
+                            data-option-id="{{ option.id }}"
+                            data-option-strike="{{ option.strike_price }}"
+                            data-option-type="{{ option.option_type }}">
+                        + Add
+                    </button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10">No option data found in the database. Try running 'flask init-db'.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div id="underlying-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeUnderlyingModal(false)">×</span> <!-- Pass false for skip -->
+            <h2>Add Underlying Asset to Strategy?</h2>
+            <p>Optionally add the underlying stock (标的合约) as the first leg.</p>
+
+            <label for="underlying-quantity">Quantity (e.g., shares):</label>
+            <input type="number" id="underlying-quantity" name="underlying_quantity" min="1" value="100"> <!-- Default 100 -->
+
+            <label for="underlying-direction">Direction:</label>
+            <select id="underlying-direction" name="underlying_direction">
+                <option value="long" selected>Long (Buy/Hold)</option>
+                <option value="short">Short (Sell)</option>
+            </select>
+
+            <button id="underlying-confirm" class="modal-confirm" onclick="confirmAddUnderlying()">Add Underlying & Continue</button>
+            <button class="modal-cancel" onclick="closeUnderlyingModal(false)">Skip Underlying</button> <!-- Skip button -->
+        </div>
+    </div>
+
+    <!-- Modal Dialog for Quantity and Direction -->
+    <div id="strategy-modal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">×</span>
+            <h2>Add Option to Strategy</h2>
+            <p>Option: <strong id="modal-option-info"></strong></p>
+            <input type="hidden" id="modal-option-id">
+
+            <label for="modal-quantity">Quantity:</label>
+            <input type="number" id="modal-quantity" name="quantity" min="1" value="1">
+
+            <label for="modal-direction">Direction:</label>
+            <select id="modal-direction" name="direction">
+                <option value="long" selected>Long (Buy)</option>
+                <option value="short">Short (Sell)</option>
+            </select>
+
+            <button id="modal-confirm" class="modal-confirm" onclick="confirmAddToStrategy()">Add to Strategy</button>
+            <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let isCreatingStrategy = false;
+        let currentStrategy = []; // Array to hold strategy legs {id?, strike?, type, quantity, direction} type can be 'call', 'put', 'underlying'
+        
+        // --- DOM Elements ---
+        const createBtn = document.getElementById('create-strategy');
+        const finalizeBtn = document.getElementById('finalize-strategy');
+        const cancelBtn = document.getElementById('cancel-strategy');
+        const strategyDisplay = document.getElementById('current-strategy-display');
+        const strategyList = document.getElementById('strategy-items-list');
+        const optionsTableBody = document.querySelector('#options-table tbody');
+        
+        // Option Modal elements
+        const optionModal = document.getElementById('strategy-modal');
+        const modalOptionInfo = document.getElementById('modal-option-info');
+        const modalOptionIdInput = document.getElementById('modal-option-id');
+        const modalQuantityInput = document.getElementById('modal-quantity');
+        const modalDirectionSelect = document.getElementById('modal-direction');
+
+        // Underlying Modal elements
+        const underlyingModal = document.getElementById('underlying-modal');
+        const underlyingQuantityInput = document.getElementById('underlying-quantity');
+        const underlyingDirectionSelect = document.getElementById('underlying-direction');
+
+
+        // --- Event Listeners ---
+        createBtn.addEventListener('click', startStrategyCreation); // Will now open underlying modal first
+        cancelBtn.addEventListener('click', cancelStrategyCreation);
+        finalizeBtn.addEventListener('click', finalizeStrategy);
+
+        optionsTableBody.addEventListener('click', function(event) {
+            if (event.target.classList.contains('add-strategy-button') && isCreatingStrategy) { // Check mode
+                openOptionModal(event.target);
+            }
+        });
+        
+        strategyList.addEventListener('click', function(event) {
+            if (event.target.classList.contains('remove-item')) {
+                const indexToRemove = parseInt(event.target.getAttribute('data-index'), 10);
+                removeStrategyItem(indexToRemove);
+            }
+        });
+
+        // --- Functions ---
+        function startStrategyCreation() {
+            // Don't set isCreatingStrategy true yet, wait for user interaction with underlying modal
+            currentStrategy = []; // Reset strategy immediately
+            openUnderlyingModal(); // Show the underlying prompt first
+            updateStrategyDisplay(); // Clear display
+        }
+
+        function openUnderlyingModal() {
+            underlyingQuantityInput.value = 100; // Reset
+            underlyingDirectionSelect.value = 'long'; // Reset
+            underlyingModal.style.display = "block";
+        }
+
+        function closeUnderlyingModal(addedUnderlying) {
+            underlyingModal.style.display = "none";
+            // NOW enter strategy creation mode visually, regardless of whether underlying was added
+            isCreatingStrategy = true; 
+            updateUIForStrategyMode(); 
+            // Update display in case underlying was added
+            updateStrategyDisplay(); 
+        }
+        
+        function confirmAddUnderlying() {
+            const quantity = parseInt(underlyingQuantityInput.value, 10);
+            const direction = underlyingDirectionSelect.value;
+
+            if (isNaN(quantity) || quantity <= 0) {
+                alert("Please enter a valid quantity greater than 0 for the underlying.");
+                return;
+            }
+            
+            currentStrategy.push({
+                type: 'underlying', // Special type
+                quantity: quantity,
+                direction: direction
+                // No strike, id for underlying
+            });
+            
+            closeUnderlyingModal(true); // Close modal and proceed, indicating underlying was added
+        }
+
+
+        function cancelStrategyCreation() {
+            isCreatingStrategy = false;
+            currentStrategy = [];
+            closeUnderlyingModal(); // Ensure underlying modal is closed if open
+            closeOptionModal(); // Ensure option modal is closed if open
+            updateUIForStrategyMode();
+            updateStrategyDisplay(); // Clear display
+        }
+
+        function finalizeStrategy() {
+            if (currentStrategy.length === 0) {
+                alert("Strategy is empty. Please add options or underlying first.");
+                return;
+            }
+
+            // Disable buttons temporarily to prevent double-clicks
+            finalizeBtn.disabled = true;
+            cancelBtn.disabled = true;
+
+            console.log("Finalizing strategy:", currentStrategy); // Log before sending
+
+            // *** Use fetch to send data to the backend ***
+            fetch('/api/save_strategy', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json', // Set content type header
+                },
+                body: JSON.stringify({ strategy: currentStrategy }) // Send the array wrapped in an object
+            })
+            .then(response => {
+                // Check if response is ok (status in the range 200-299)
+                if (!response.ok) {
+                    // If not ok, try to parse error message, otherwise throw generic error
+                    return response.json().then(err => { throw new Error(err.message || `HTTP error! status: ${response.status}`) });
+                }
+                return response.json(); // Parse JSON body of the response
+            })
+            .then(data => {
+                console.log("Server response:", data); // Log server response
+                if (data.success) {
+                    alert(`Strategy saved successfully! ID: ${data.strategy_id}`);
+                    cancelStrategyCreation(); // Reset UI on success
+                } else {
+                    // Display error message from server
+                    alert(`Error saving strategy: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending strategy:', error);
+                alert(`Network or parsing error saving strategy: ${error.message}`);
+            })
+            .finally(() => {
+                 // Re-enable buttons regardless of success/failure
+                 finalizeBtn.disabled = false;
+                 cancelBtn.disabled = false;
+            });
+        }
+        
+
+        function updateUIForStrategyMode() {
+            // If we are NOT creating a strategy, ensure modals are hidden
+            if (!isCreatingStrategy) {
+                 closeOptionModal();
+                 closeUnderlyingModal(); // Should already be closed, but just in case
+            }
+
+            createBtn.classList.toggle('hidden', isCreatingStrategy);
+            finalizeBtn.classList.toggle('hidden', !isCreatingStrategy);
+            cancelBtn.classList.toggle('hidden', !isCreatingStrategy);
+            strategyDisplay.classList.toggle('hidden', !isCreatingStrategy && currentStrategy.length === 0); // Hide only if not creating AND empty
+
+            document.querySelectorAll('.add-strategy-button').forEach(button => {
+                button.classList.toggle('hidden', !isCreatingStrategy);
+            });
+            document.querySelectorAll('.edit-button').forEach(button => {
+                 button.classList.toggle('hidden', isCreatingStrategy);
+             });
+        }
+
+        function openOptionModal(buttonElement) { // Renamed from openModalForOption
+            const optionId = buttonElement.getAttribute('data-option-id');
+            const strike = buttonElement.getAttribute('data-option-strike');
+            const type = buttonElement.getAttribute('data-option-type');
+
+            modalOptionInfo.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} K=${strike}`;
+            modalOptionIdInput.value = optionId;
+            modalQuantityInput.value = 1; 
+            modalDirectionSelect.value = 'long'; 
+            optionModal.style.display = "block"; 
+        }
+
+        function closeOptionModal() { // Renamed from closeModal
+            optionModal.style.display = "none"; 
+        }
+
+        function confirmAddToStrategy() { // Handles adding OPTION leg
+            const optionId = parseInt(modalOptionIdInput.value, 10);
+            const quantity = parseInt(modalQuantityInput.value, 10);
+            const direction = modalDirectionSelect.value;
+            
+            if (isNaN(quantity) || quantity <= 0) {
+                alert("Please enter a valid quantity greater than 0.");
+                return;
+            }
+            if (!optionId) {
+                 alert("Error: Option ID not found.");
+                 return;
+            }
+             
+            const addButton = document.querySelector(`.add-strategy-button[data-option-id='${optionId}']`);
+             if (!addButton) {
+                 alert("Error: Could not find original option data.");
+                 closeOptionModal();
+                 return;
+             }
+             const strike = addButton.getAttribute('data-option-strike');
+             const type = addButton.getAttribute('data-option-type');
+
+            currentStrategy.push({
+                id: optionId,
+                strike: parseFloat(strike),
+                type: type,
+                quantity: quantity,
+                direction: direction
+            });
+
+            updateStrategyDisplay(); 
+            closeOptionModal();
+        }
+        
+        function removeStrategyItem(index) {
+            if (index >= 0 && index < currentStrategy.length) {
+                currentStrategy.splice(index, 1); 
+                updateStrategyDisplay(); 
+            }
+        }
+
+        function updateStrategyDisplay() {
+            strategyList.innerHTML = ''; 
+            strategyDisplay.classList.toggle('hidden', !isCreatingStrategy && currentStrategy.length === 0); 
+
+            if (currentStrategy.length === 0) {
+                 if (isCreatingStrategy) { 
+                    strategyList.innerHTML = '<li>No legs added yet.</li>';
+                 }
+            } else {
+                currentStrategy.forEach((item, index) => {
+                    const listItem = document.createElement('li');
+                    // Check if basic properties exist before using them
+                    const quantityText = item.quantity ? item.quantity : '[?]'
+                    const directionText = item.direction ? item.direction.toUpperCase() : '[?]'
+                    
+                    let text = `${quantityText} x ${directionText} `;
+
+                    if (item.type === 'underlying') { 
+                        text += 'Underlying';
+                    } 
+                    // *** Defensive Check Added Here ***
+                    else if (typeof item.type === 'string' && (item.type === 'call' || item.type === 'put') && typeof item.strike !== 'undefined') { 
+                        // Only proceed if type is a valid string ('call' or 'put') and strike exists
+                        text += `${item.type.charAt(0).toUpperCase() + item.type.slice(1)} K=${item.strike}`;
+                    } 
+                    else {
+                        // Handle unexpected item structure gracefully
+                        console.error("Unexpected item structure in strategy:", item); // Log the bad item
+                        text += `[Invalid Item Data]`; 
+                    }
+                    
+                    listItem.textContent = text; 
+
+                     const removeLink = document.createElement('span');
+                     removeLink.textContent = ' [Remove]';
+                     removeLink.classList.add('remove-item');
+                     removeLink.setAttribute('data-index', index); 
+                     listItem.appendChild(removeLink);
+                    strategyList.appendChild(listItem);
+                });
+            }
+        }
+
+        // --- Modal Closing Logic ---
+        // Close Option modal if user clicks outside
+        window.addEventListener('click', function(event) {
+            if (event.target == optionModal) {
+                closeOptionModal();
+            }
+            // Close Underlying modal if user clicks outside (and skip adding)
+            if (event.target == underlyingModal) {
+                 closeUnderlyingModal(false); // Treat clicking outside as skipping
+            }
+        });
+
+        // Add onclick handlers directly to modal buttons in HTML for simplicity here, 
+        // or add listeners like this:
+        // document.getElementById('modal-confirm').addEventListener('click', confirmAddToStrategy);
+        // document.querySelector('#strategy-modal .modal-cancel').addEventListener('click', closeOptionModal);
+        // document.getElementById('underlying-confirm').addEventListener('click', confirmAddUnderlying);
+        // document.querySelector('#underlying-modal .modal-cancel').addEventListener('click', () => closeUnderlyingModal(false)); // Lambda for skip
+
+    </script>
+
+</body>
+</html>
