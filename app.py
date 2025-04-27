@@ -3,11 +3,12 @@ import os
 from datetime import datetime # Import datetime
 import json
 import dotenv
+from collections import defaultdict # Useful for grouping
 
 from scipy.stats import norm
 from flask import Flask, request, render_template, flash, redirect, url_for, abort, jsonify # Import jsonify
 from models import db, OptionData, Strategy, StrategyLeg, populate_initial_data # Import new models
-from strategy_defs import STRATEGY_DETAILS # I
+from strategy_defs import STRATEGY_DETAILS, STRATEGY_SCENARIO_MAP # Import new strategy definitions
 # app.py (or a new utils.py)
 from openai import OpenAI, APITimeoutError, APIConnectionError, RateLimitError, APIStatusError # Import specific errors
 import traceback
@@ -56,6 +57,12 @@ def init_db_command():
 # -------------------------------------
 # Black-Scholes Calculation Function (Keep as before)
 # -------------------------------------
+
+def classify_strategy(strategy_info):
+    """ Assigns a strategy to one or more scenarios based on its identified type """
+    eng_name = strategy_info.get('name_en', 'Unknown Strategy')
+    return STRATEGY_SCENARIO_MAP.get(eng_name, ["unclassified"]) # Default to unclassified
+
 def black_scholes_merton(S, K, T_days, r_pct, sigma_pct, option_type='call', q_pct=0):
     """Calculates the Black-Scholes-Merton option price."""
     try:
@@ -150,10 +157,10 @@ Provide your answer ONLY in the following JSON format, with no other text, comme
                 {"role": "user", "content": prompt}
             ],
             temperature=0.2, # Lower temperature for more deterministic results
-            max_tokens=300, # Limit response length
+            max_tokens=4000, # Limit response length
             response_format={"type": "json_object"} # Request JSON output if model supports it
         )
-        
+        print(response)
         content = response.choices[0].message.content
         print(f"OpenAI Response Content: {content}") # Log the raw response
 
@@ -387,6 +394,7 @@ def edit_option(option_id):
         abort(404) # Not found error
 
     if request.method == 'POST':
+        print(f"Received POST request for option {request.form}")
         try:
             # Update fields from form data
             option.market_price = float(request.form['market_price'])
@@ -396,7 +404,7 @@ def edit_option(option_id):
             option.theta = float(request.form['theta'])
             option.vega = float(request.form['vega'])
             option.rho = float(request.form['rho'])
-            
+            option.target_name = request.form['target_name_display']
             db.session.commit()
             flash(f'Option {option.option_type.upper()} K={option.strike_price} updated successfully!', 'success')
             return redirect(url_for('list_options'))
@@ -548,7 +556,7 @@ def list_strategies():
                         calculation_possible = False
                         continue # Skip greek calculation for this leg
 
-                    legs_details.append(f"{int(leg.quantity)} x {leg.direction.upper()} {option_data.option_type.capitalize()} K={option_data.strike_price}")
+                    legs_details.append(f"{option_data.target_name} {int(leg.quantity)} x {leg.direction.upper()} {option_data.option_type.capitalize()} K={option_data.strike_price}")
                # Check if theoretical value exists for calculation
                     o_theoretical = option_data.theoretical_value # <<< Get theoretical value
                     if o_theoretical is None:
@@ -601,7 +609,72 @@ def list_strategies():
         # Render template with an error message (optional)
         flash(f"Error loading strategies: {e}", "danger")
         return render_template('list_strategies.html', strategies_data=[], error=str(e))
+    
+@app.route('/classify_strategies')
+def classify_strategies_view():
+    """ Fetches strategies, identifies, classifies by scenario, and displays."""
+    try:
+        strategies = Strategy.query.order_by(Strategy.created_at.desc()).all()
+        
+        # Dictionary to hold lists of strategies for each scenario
+        classified_strategies = defaultdict(list)
+        
+        # Define scenario labels for the template
+        scenario_labels = {
+            'big_rally': '大涨 (Big Rally)',
+            'big_drop': '大跌 (Big Drop)',
+            'small_rally': '小涨 (Small Rally)',
+            'small_drop': '小跌 (Small Drop)',
+            'range_bound': '盘整/不变 (Range-bound)',
+            'unclassified': '未分类/复杂 (Unclassified/Complex)'
+        }
 
+        for strategy in strategies:
+            for item in strategy.legs:
+                if item.leg_type != 'underlying':
+                    option_data = db.session.get(OptionData, item.option_data_id)
+                    item.option = option_data
+                else:
+                    item.option = None
+            # Identify the strategy type and get details
+            # Make sure identify_strategy_type is available
+            strategy_info = identify_strategy_type(strategy.legs, use_llm_fallback=False) # Disable LLM for speed here? Or keep enabled.
+
+            # Get the classification(s) for this strategy
+            scenarios = classify_strategy(strategy_info)
+
+            # Prepare basic data for display
+            strategy_display_data = {
+                 'id': strategy.id,
+                 'strategy_info': strategy_info, # Pass the full info for tooltips/details
+                 'legs_details': [f"{int(leg.quantity) if leg.option is None else int(leg.quantity*100)} x {leg.direction.upper()} {leg.option.option_type.capitalize() if leg.option is not None else 'Underlying'} {('K='+str(leg.option.strike_price)) if leg.option is not None else ''}".strip() for leg in strategy.legs],
+                 'created_at': strategy.created_at
+             }
+
+            # Add the strategy to the list for each scenario it fits
+            if scenarios:
+                for scenario_key in scenarios:
+                     if scenario_key in scenario_labels: # Only add to known categories
+                        classified_strategies[scenario_key].append(strategy_display_data)
+            else: # Handle empty strategy or other cases if needed
+                 pass
+
+
+        return render_template('classify_strategies.html',
+                               classified_strategies=classified_strategies,
+                               scenario_labels=scenario_labels,
+                               scenario_order=['big_rally', 'small_rally', 'range_bound', 'small_drop', 'big_drop', 'unclassified']) # Control display order
+
+    except Exception as e:
+        print(f"Error classifying strategies: {e}")
+        flash(f"Error loading classification page: {e}", "danger")
+        # Optionally pass empty dicts to prevent template errors
+        return render_template('classify_strategies.html', classified_strategies={}, scenario_labels={}, scenario_order=[], error=str(e))
+
+
+@app.route('/guide')
+def guide_view():
+    return render_template('guide.html')
 
 # -------------------------------------
 # Run the App

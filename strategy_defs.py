@@ -142,3 +142,43 @@ STRATEGY_DETAILS = {
     }
     # Add more strategies here as identified...
 }
+
+STRATEGY_SCENARIO_MAP = {
+    "Long Call": ["big_rally"],
+    "Bull Call Spread": ["big_rally", "small_rally"],
+    "Bull Put Spread": ["small_rally", "range_bound"], # Often used for neutral-to-bullish
+    "Long Underlying": ["big_rally", "small_rally"],
+
+    "Long Put": ["big_drop"],
+    "Bear Put Spread": ["big_drop", "small_drop"],
+    "Bear Call Spread": ["small_drop", "range_bound"], # Often used for neutral-to-bearish
+
+    "Protective Put": ["big_drop", "small_drop"], # Primarily downside protection
+    "Covered Call": ["small_rally", "range_bound"], # Benefits from stable or slight rise
+
+    "Long Straddle": ["big_rally", "big_drop"], # Volatility plays
+    "Long Strangle": ["big_rally", "big_drop"], # Volatility plays
+
+    "Short Straddle": ["range_bound"], # Time decay / Low vol
+    "Short Strangle": ["range_bound"], # Time decay / Low vol
+    "Iron Condor": ["range_bound"], # Time decay / Low vol
+    "Iron Butterfly": ["range_bound"], # (If you add this type) Time decay / Low vol
+    "Long Call Butterfly": ["range_bound"], # Pin risk / Low vol around middle strike
+    "Long Put Butterfly": ["range_bound"], # (If you add this type) Pin risk / Low vol around middle strike
+
+    "Short Call": ["big_drop", "small_drop", "range_bound"], # Benefits if price doesn't rise significantly
+    "Short Put": ["big_rally", "small_rally", "range_bound"], # Benefits if price doesn't fall significantly
+
+    # Fallbacks can be classified broadly or left unclassified
+    "Mixed Underlying/Option Strategy": ["unclassified"],
+    "Custom Option Spread": ["unclassified"],
+    "Custom Underlying Strategy": ["unclassified"],
+    "LLM Identified": ["unclassified"], # Can't reliably classify LLM output without further parsing
+    "Unknown Strategy": ["unclassified"],
+    "Empty Strategy": [], # Doesn't fit anywhere
+    # Add default/error types from LLM if needed
+    "LLM Disabled": ["unclassified"],
+    "LLM Parse Error": ["unclassified"],
+    "LLM API Error": ["unclassified"],
+    "LLM Unknown Error": ["unclassified"],
+}

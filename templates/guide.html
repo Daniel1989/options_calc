@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>期权策略详解</title>
+    <style>
+        body {
+            font-family: "Microsoft YaHei", "SimHei", sans-serif;
+            line-height: 1.7;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #0056b3; /* Deep blue */
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        .strategy-card {
+            border: 1px solid #e0e0e0;
+            border-left: 5px solid #007bff; /* Blue accent */
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            border-radius: 5px;
+            background-color: #ffffff;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            transition: box-shadow 0.3s ease;
+        }
+        .strategy-card:hover {
+             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .strategy-card h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #0056b3;
+            font-size: 1.4em;
+        }
+        .strategy-card dl {
+            margin: 0;
+            padding: 0;
+        }
+        .strategy-card dt {
+            font-weight: bold;
+            color: #343a40;
+            margin-top: 10px;
+        }
+        .strategy-card dd {
+            margin-left: 0; /* Reset default margin */
+            margin-bottom: 8px;
+            color: #555;
+            padding-left: 10px; /* Indent description */
+            border-left: 2px solid #e9ecef;
+            font-family: Consolas, monospace; /* Use monospace for examples */
+            font-size: 0.95em;
+        }
+        .strategy-card dd.scenario-desc { /* Normal font for scenario desc */
+             font-family: "Microsoft YaHei", "SimHei", sans-serif;
+             font-size: 1em;
+        }
+        .positive { color: #28a745; font-weight: bold; } /* Green */
+        .negative { color: #dc3545; font-weight: bold; } /* Red */
+        .neutral { color: #6c757d; font-weight: bold; } /* Gray */
+        .volatility { color: #ffc107; font-weight: bold; } /* Yellow */
+
+        /* Add specific accent colors based on primary expected outcome */
+        .strategy-card.big_rally, .strategy-card.small_rally { border-left-color: #28a745; } /* Green */
+        .strategy-card.big_drop, .strategy-card.small_drop { border-left-color: #dc3545; } /* Red */
+        .strategy-card.range_bound { border-left-color: #6c757d; } /* Gray */
+        .strategy-card.volatility { border-left-color: #ffc107; } /* Yellow */
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="{{ url_for('index') }}">Calculator</a>
+            <a href="{{ url_for('list_options') }}">View Options</a>
+            <a href="{{ url_for('list_strategies') }}">View Strategies</a>
+            <a href="{{ url_for('classify_strategies_view') }}">Classify Strategies</a> <!-- Link to self/new page -->
+            <a href="{{ url_for('guide_view') }}">Guide</a> <!-- Link to self/new page -->
+        </nav>
+        <h1>期权策略详解</h1>
+        <div class="strategy-card big_rally">
+            <h2>买入看涨期权 (Long Call)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的大幅上涨中获利，利用期权的杠杆效应。</dd>
+                <dt>案例:</dt>
+                <dd>买入 10 份 XYZ 公司 6月到期 行权价 100 的看涨期权 (10 x Long XYZ Jun 100 Call)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">强烈看好后市，预期标的资产价格将显著上涨，超过行权价与权利金之和；或预期隐含波动率将大幅上升。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="positive">大涨</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card small_rally big_rally">
+            <h2>牛市看涨价差 (Bull Call Spread)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的温和上涨中获利，同时限定最大风险和成本。</dd>
+                <dt>案例:</dt>
+                <dd>买入 10 份 ABC 公司 6月到期 行权价 50 的看涨期权 (10 x Long ABC Jun 50 Call)；同时，卖出 10 份 ABC 公司 6月到期 行权价 55 的看涨期权 (10 x Short ABC Jun 55 Call)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">温和看涨后市，认为标的资产价格会上涨，但涨幅可能有限（不超过卖出期权的行权价），希望以较低成本参与上涨。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="positive">小涨 或 大涨 (盈利有上限)</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card small_rally range_bound">
+            <h2>牛市看跌价差 (Bull Put Spread)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">通过收取权利金获利，前提是标的资产价格保持稳定或上涨，不跌破卖出看跌期权的行权价。</dd>
+                 <dt>案例:</dt>
+                <dd>卖出 10 份 DEF 公司 7月到期 行权价 95 的看跌期权 (10 x Short DEF Jul 95 Put)；同时，买入 10 份 DEF 公司 7月到期 行权价 90 的看跌期权 (10 x Long DEF Jul 90 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">温和看涨或中性预期，认为标的资产价格不会下跌（或小幅上涨），尤其是不认为会跌破卖出期权的行权价。主要目的是赚取时间价值和波动率下降带来的收益。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="positive">小涨</dd> <dd class="neutral">或 盘整/不变</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card small_rally big_rally">
+            <h2>标的多头 (Long Underlying)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的上涨中直接获利。</dd>
+                 <dt>案例:</dt>
+                <dd>买入 500 股 GHI 公司股票 (500 x Long GHI Stock)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">看好标的资产未来价格会上涨。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="positive">小涨 或 大涨</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card big_drop">
+            <h2>买入看跌期权 (Long Put)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的大幅下跌中获利，利用期权的杠杆效应；或对冲持有的多头头寸。</dd>
+                 <dt>案例:</dt>
+                <dd>买入 5 份 JKL 公司 8月到期 行权价 70 的看跌期权 (5 x Long JKL Aug 70 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">强烈看空后市，预期标的资产价格将显著下跌，低于行权价与权利金之差；或预期隐含波动率将大幅上升；或需要为持有的股票购买“保险”。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="negative">大跌</dd>
+            </dl>
+        </div>
+
+         <div class="strategy-card small_drop big_drop">
+            <h2>熊市看跌价差 (Bear Put Spread)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的温和下跌中获利，同时限定最大风险和成本。</dd>
+                 <dt>案例:</dt>
+                 <dd>买入 10 份 MNO 公司 9月到期 行权价 110 的看跌期权 (10 x Long MNO Sep 110 Put)；同时，卖出 10 份 MNO 公司 9月到期 行权价 105 的看跌期权 (10 x Short MNO Sep 105 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">温和看跌后市，认为标的资产价格会下跌，但跌幅可能有限（不低于卖出期权的行权价），希望以较低成本参与下跌。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="negative">小跌 或 大跌 (盈利有上限)</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card small_drop range_bound">
+            <h2>熊市看涨价差 (Bear Call Spread)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">通过收取权利金获利，前提是标的资产价格保持稳定或下跌，不涨过卖出看涨期权的行权价。</dd>
+                 <dt>案例:</dt>
+                <dd>卖出 5 份 PQR 公司 6月到期 行权价 150 的看涨期权 (5 x Short PQR Jun 150 Call)；同时，买入 5 份 PQR 公司 6月到期 行权价 155 的看涨期权 (5 x Long PQR Jun 155 Call)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">温和看跌或中性预期，认为标的资产价格不会上涨（或小幅下跌），尤其是不认为会涨过卖出期权的行权价。主要目的是赚取时间价值和波动率下降带来的收益。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="negative">小跌</dd> <dd class="neutral">或 盘整/不变</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card small_drop big_drop">
+            <h2>保护性看跌 (Protective Put)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在持有标的资产的同时，对冲其下行风险，锁定最低卖出价格。</dd>
+                <dt>案例:</dt>
+                <dd>持有 300 股 STU 公司股票 (300 x Long STU Stock)；同时，买入 3 份 STU 公司 7月到期 行权价 45 的看跌期权 (3 x Long STU Jul 45 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">长期看好持有的股票，但担心短期内可能出现回调或下跌，希望通过买入看跌期权来保护已有利润或限制潜在损失（相当于购买保险）。</dd>
+                <dt>预期标的变化:</dt>
+                 <dd class="negative">小跌 或 大跌 (提供保护)</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card small_rally range_bound">
+            <h2>备兑看涨 (Covered Call)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在持有标的资产的同时，通过卖出看涨期权增加额外收入（权利金），降低持仓成本。</dd>
+                 <dt>案例:</dt>
+                <dd>持有 1000 股 VWX 公司股票 (1000 x Long VWX Stock)；同时，卖出 10 份 VWX 公司 8月到期 行权价 80 的看涨期权 (10 x Short VWX Aug 80 Call)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">对持有的股票前景中性或温和看好，不预期短期内大涨，希望提高持有期间的回报率，愿意放弃股票价格大幅上涨超过行权价的部分潜在收益。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="positive">小涨</dd> <dd class="neutral">或 盘整/不变</dd>
+            </dl>
+        </div>
+
+         <div class="strategy-card volatility big_rally big_drop">
+            <h2>买入跨式 (Long Straddle)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的剧烈波动中获利，无论方向是上涨还是下跌。</dd>
+                <dt>案例:</dt>
+                <dd>买入 5 份 YZA 公司 9月到期 行权价 200 的看涨期权 (5 x Long YZA Sep 200 Call)；同时，买入 5 份 YZA 公司 9月到期 行权价 200 的看跌期权 (5 x Long YZA Sep 200 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">预期市场将发生重大事件（如财报、利率决议、选举等），导致标的资产价格出现大幅波动，但不确定具体方向；预期隐含波动率将上升。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="volatility">大涨 或 大跌</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card volatility big_rally big_drop">
+            <h2>买入宽跨式 (Long Strangle)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">从标的资产价格的剧烈波动中获利（相比跨式需要更大波动幅度），但建仓成本较低。</dd>
+                 <dt>案例:</dt>
+                 <dd>买入 10 份 BCD 公司 6月到期 行权价 110 的看涨期权 (10 x Long BCD Jun 110 Call)；同时，买入 10 份 BCD 公司 6月到期 行权价 90 的看跌期权 (10 x Long BCD Jun 90 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">预期标的资产价格将发生非常大的波动，但不确定方向，且希望支付比跨式更少的权利金。需要价格波动超过两个行权价之外才能盈利。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="volatility">大涨 或 大跌 (需要幅度更大)</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card range_bound">
+            <h2>卖出跨式 (Short Straddle)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在标的资产价格窄幅波动或隐含波动率下降时，通过收取权利金（时间价值衰减）获利。</dd>
+                <dt>案例:</dt>
+                <dd>卖出 3 份 EFG 公司 7月到期 行权价 60 的看涨期权 (3 x Short EFG Jul 60 Call)；同时，卖出 3 份 EFG 公司 7月到期 行权价 60 的看跌期权 (3 x Short EFG Jul 60 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">预期标的资产价格将在行权价附近横盘整理，波动率将下降或保持低位。主要目的是赚取时间价值。风险极高且可能无限。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="neutral">盘整/不变</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card range_bound">
+            <h2>卖出宽跨式 (Short Strangle)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在标的资产价格在两个（卖出的）行权价之间窄幅波动或隐含波动率下降时，通过收取权利金获利。</dd>
+                <dt>案例:</dt>
+                <dd>卖出 5 份 HIJ 公司 8月到期 行权价 130 的看涨期权 (5 x Short HIJ Aug 130 Call)；同时，卖出 5 份 HIJ 公司 8月到期 行权价 120 的看跌期权 (5 x Short HIJ Aug 120 Put)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">预期标的资产价格将在两个行权价之间运行，波动率将下降或保持低位。相比卖出跨式，需要更宽的盘整区间，但收取的权利金也较少。风险极高且可能无限。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="neutral">盘整/不变 (区间内)</dd>
+            </dl>
+        </div>
+
+         <div class="strategy-card range_bound">
+            <h2>铁鹰式价差 (Iron Condor)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在标的资产价格在中间两个（卖出的）行权价之间窄幅波动时，通过收取净权利金获利，同时限定最大风险。</dd>
+                 <dt>案例:</dt>
+                <dd>卖出 10 份 KLM 指数 9月到期 行权价 3000 的看跌期权 (10 x Short KLM Sep 3000 Put)；<br>
+                    买入 10 份 KLM 指数 9月到期 行权价 2950 的看跌期权 (10 x Long KLM Sep 2950 Put)；<br>
+                    卖出 10 份 KLM 指数 9月到期 行权价 3200 的看涨期权 (10 x Short KLM Sep 3200 Call)；<br>
+                    买入 10 份 KLM 指数 9月到期 行权价 3250 的看涨期权 (10 x Long KLM Sep 3250 Call)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">预期标的资产价格在到期日时将在预设的区间内波动（由卖出的期权行权价定义），且隐含波动率会下降或保持稳定。是一种风险和收益都有限的中性策略。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="neutral">盘整/不变 (区间内)</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card range_bound">
+            <h2>买入蝶式看涨 (Long Call Butterfly)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在标的资产价格精确地移动到中间行权价时获得最大利润，风险和成本都较低。</dd>
+                 <dt>案例:</dt>
+                <dd>买入 1 份 NOP 公司 6月到期 行权价 90 的看涨期权 (1 x Long NOP Jun 90 Call)；<br>
+                    卖出 2 份 NOP 公司 6月到期 行权价 100 的看涨期权 (2 x Short NOP Jun 100 Call)；<br>
+                    买入 1 份 NOP 公司 6月到期 行权价 110 的看涨期权 (1 x Long NOP Jun 110 Call)。</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">非常精确地预期标的资产价格在到期日时会停留在中间行权价附近，且波动率较低。最大利润仅在中间价实现，是一个目标明确的低波动率策略。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="neutral">盘整/不变 (精确在中间价)</dd>
+            </dl>
+        </div>
+
+         <div class="strategy-card range_bound">
+            <h2>买入蝶式看跌 (Long Put Butterfly)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">在标的资产价格精确地移动到中间行权价时获得最大利润，风险和成本都较低。</dd>
+                 <dt>案例:</dt>
+                 <dd>买入 1 份 QRS 公司 7月到期 行权价 110 的看跌期权 (1 x Long QRS Jul 110 Put)；<br>
+                     卖出 2 份 QRS 公司 7月到期 行权价 100 的看跌期权 (2 x Short QRS Jul 100 Put)；<br>
+                     买入 1 份 QRS 公司 7月到期 行权价 90 的看跌期权 (1 x Long QRS Jul 90 Put)。</dd>
+                 <dt>适用场景:</dt>
+                 <dd class="scenario-desc">同买入蝶式看涨，预期标的资产价格在到期日时会停留在中间行权价附近，且波动率较低。结构为(买入高价Put, 卖出2份中价Put, 买入低价Put)。</dd>
+                <dt>预期标的变化:</dt>
+                <dd class="neutral">盘整/不变 (精确在中间价)</dd>
+            </dl>
+        </div>
+
+        <div class="strategy-card big_drop small_drop range_bound">
+            <h2>卖出看涨期权 (Short Call - Naked)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">通过收取权利金获利，前提是标的资产价格不显著上涨（保持在行权价以下）。</dd>
+                <dt>案例:</dt>
+                <dd>卖出 5 份 TUV 公司 8月到期 行权价 250 的看涨期权 (5 x Short TUV Aug 250 Call)。(注意：无对应股票持仓)</dd>
+                <dt>适用场景:</dt>
+                <dd class="scenario-desc">看跌或中性预期，认为标的资产价格不会上涨到行权价之上。目的是赚取时间价值和隐含波动率下降带来的收益。注意：裸卖出看涨期权风险理论上无限。</dd>
+                <dt>预期标的变化:</dt>
+                 <dd class="negative">大跌 或 小跌</dd> <dd class="neutral">或 盘整/不变</dd>
+            </dl>
+        </div>
+
+         <div class="strategy-card big_rally small_rally range_bound">
+            <h2>卖出看跌期权 (Short Put - Naked)</h2>
+            <dl>
+                <dt>策略目标:</dt>
+                <dd class="scenario-desc">通过收取权利金获利，前提是标的资产价格不显著下跌（保持在行权价之上）；或者愿意以行权价买入标的。</dd>
+                 <dt>案例:</dt>
+                 <dd>卖出 10 份 WXY 公司 9月到期 行权价 40 的看跌期权 (10 x Short WXY Sep 40 Put)。</dd>
+                 <dt>适用场景:</dt>
+                 <dd class="scenario-desc">看涨或中性预期，认为标的资产价格不会下跌到行权价之下，或者认为行权价是一个合适的买入点。目的是赚取时间价值和隐含波动率下降带来的收益。风险较大。</dd>
+                <dt>预期标的变化:</dt>
+                 <dd class="positive">大涨 或 小涨</dd> <dd class="neutral">或 盘整/不变</dd>
+            </dl>
+        </div>
+
+    </div> <!-- end container -->
+</body>
+</html>

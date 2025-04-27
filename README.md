@@ -59,3 +59,6 @@ In essence, the "理论价格" is the model-derived fair value of the option bas
 
 ## 查看无风险利率
 https://www.ceicdata.com/zh-hans/china/pbc--ccdc-treasury-bond-and-other-bond-yield-daily/bond-yield-treasury-bond-3-month?utm_source=chatgpt.com
+
+## 大模型问题
+如果返回的content is None. 则查看finish_reason，如果说是length，说明就是max_token设置小了。导致不输出内容

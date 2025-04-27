@@ -18,6 +18,7 @@ class OptionData(db.Model):
     theta = db.Column(db.Float, nullable=True)
     vega = db.Column(db.Float, nullable=True)
     rho = db.Column(db.Float, nullable=True)
+    target_name = db.Column(db.String(255), nullable=True)  # 'call' or 'put'
 
     strategy_legs = db.relationship('StrategyLeg', backref='option_data', lazy=True)
 

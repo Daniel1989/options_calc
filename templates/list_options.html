@@ -89,6 +89,8 @@
         <a href="{{ url_for('index') }}">Calculator</a>
         <a href="{{ url_for('list_options') }}">View Options</a>
         <a href="{{ url_for('list_strategies') }}">View Strategies</a>
+        <a href="{{ url_for('classify_strategies_view') }}">Classify Strategies</a> <!-- Link to self/new page -->
+        <a href="{{ url_for('guide_view') }}">Guide</a> <!-- Link to self/new page -->
     </nav>
 
     <!-- Flash Messages -->
@@ -117,6 +119,7 @@
     <table id="options-table">
         <thead>
             <tr>
+                <th>Target</th>
                 <th>Type</th>
                 <th>Strike (K)</th>
                 <th>Market Price</th>
@@ -132,6 +135,7 @@
         <tbody>
             {% for option in options %}
             <tr>
+                <td>{{ option.target_name }}</td>
                 <td>{{ option.option_type | capitalize }}</td>
                 <td>{{ option.strike_price }}</td>
                 <td>{{ "%.2f"|format(option.market_price) if option.market_price is not none else 'N/A' }}</td>

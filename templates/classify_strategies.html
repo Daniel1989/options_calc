@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Strategy Classification by Scenario</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        nav { margin-bottom: 20px; }
+        nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+        .scenario-section {
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: #f8f9fa;
+        }
+        .scenario-section h2 {
+            margin-top: 0;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+            color: #0056b3;
+        }
+        .strategy-item {
+            border: 1px solid #e9ecef;
+            background-color: #fff;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .strategy-item strong { font-size: 1.05em; }
+        .strategy-item .legs-list { list-style: none; padding-left: 15px; margin-top: 5px; margin-bottom: 5px; font-size: 0.9em; color: #495057;}
+        .strategy-item .legs-list li { margin-bottom: 3px; }
+        .strategy-item small { color: #6c757d; font-size: 0.85em; }
+        .strategy-name-link { /* Reusing class from list_strategies */
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        .strategy-name-link:hover { color: #0056b3; }
+        .details-panel { /* Reusing styles from list_strategies */
+            border: 1px solid #ccc; background-color: #f0f0f0; padding: 15px;
+            margin-top: 10px; border-radius: 5px; position: relative;
+            font-size: 0.9em; line-height: 1.5;
+        }
+        .details-panel h4 { margin-top: 0; margin-bottom: 8px; }
+        .details-panel p { margin-bottom: 5px; }
+        .details-panel strong { display: inline-block; width: 60px; font-weight: bold;}
+         .details-panel .close-button { /* Reusing style */
+             position: absolute; top: 8px; right: 10px; background: #dc3545; color: white;
+             border: none; padding: 2px 6px; cursor: pointer; border-radius: 3px; font-size: 0.8em;
+         }
+        .hidden { display: none; }
+        .flash { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+        .flash.danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+    </style>
+</head>
+<body>
+    <h1>Strategy Classification by Market Scenario</h1>
+
+    <nav>
+        <a href="{{ url_for('index') }}">Calculator</a>
+        <a href="{{ url_for('list_options') }}">View Options</a>
+        <a href="{{ url_for('list_strategies') }}">View Strategies</a>
+        <a href="{{ url_for('classify_strategies_view') }}">Classify Strategies</a> <!-- Link to self/new page -->
+        <a href="{{ url_for('guide_view') }}">Guide</a> <!-- Link to self/new page -->
+    </nav>
+
+    <!-- Optional: Display general errors -->
+    {% if error %}
+        <p class="flash danger">Error loading page: {{ error }}</p>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Loop through scenarios in defined order -->
+    {% for scenario_key in scenario_order %}
+        {% if scenario_key in classified_strategies and classified_strategies[scenario_key] %}
+            <div class="scenario-section">
+                <h2>{{ scenario_labels.get(scenario_key, scenario_key) }}</h2> {# Use label from dict #}
+
+                {% for strategy in classified_strategies[scenario_key] %}
+                    <div class="strategy-item" id="strategy-item-{{ strategy.id }}-{{ scenario_key }}"> {# Unique ID per instance #}
+                        <strong>
+                            <span class="strategy-name-link"
+                                  data-details-target="#details-{{ strategy.id }}-{{ scenario_key }}" {# Link to its details div #}
+                                  data-name-cn="{{ strategy.strategy_info.name_cn }}"
+                                  data-description="{{ strategy.strategy_info.description }}"
+                                  data-example="{{ strategy.strategy_info.example }}"
+                                  data-scenarios="{{ strategy.strategy_info.scenarios }}"
+                                  title="点击查看详情">
+                                {{ strategy.strategy_info.name_cn }}
+                            </span>
+                            (ID: {{ strategy.id }})
+                        </strong>
+                        <small> - Created: {{ strategy.created_at.strftime('%Y-%m-%d %H:%M') if strategy.created_at else 'N/A' }}</small>
+                        <ul class="legs-list">
+                            {% for leg_detail in strategy.legs_details %}
+                                <li>{{ leg_detail }}</li>
+                            {% endfor %}
+                        </ul>
+                        <!-- Hidden Details Panel Specific to this strategy instance -->
+                        <div id="details-{{ strategy.id }}-{{ scenario_key }}" class="details-panel hidden">
+                            <button class="close-button" data-details-target="#details-{{ strategy.id }}-{{ scenario_key }}">关闭 [X]</button>
+                             <h4>{{ strategy.strategy_info.name_cn }}</h4>
+                             <p><strong>描述:</strong> <span>{{ strategy.strategy_info.description }}</span></p>
+                             <p><strong>示例:</strong> <span>{{ strategy.strategy_info.example }}</span></p>
+                             <p><strong>适用场景:</strong> <span>{{ strategy.strategy_info.scenarios }}</span></p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endfor %}
+
+    {# Handle case where no strategies exist at all #}
+    {% if not classified_strategies %}
+         <p>No strategies found in the database to classify.</p>
+    {% endif %}
+
+    <script>
+        // --- Event Listeners ---
+        // Use event delegation on the document body or a container div
+        document.body.addEventListener('click', function(event) {
+            const target = event.target;
+
+            // Handle clicking the strategy name link
+            const nameLink = target.closest('.strategy-name-link');
+            if (nameLink) {
+                event.preventDefault(); // Prevent default link behavior if it were an <a>
+                const detailsTargetSelector = nameLink.dataset.detailsTarget;
+                const detailsPanel = document.querySelector(detailsTargetSelector);
+                if (detailsPanel) {
+                     // Hide any other currently open panels first (optional)
+                    // document.querySelectorAll('.details-panel:not(.hidden)').forEach(panel => panel.classList.add('hidden'));
+                    detailsPanel.classList.remove('hidden'); // Show this panel
+                    // Populate details (already done in HTML via Jinja now)
+                }
+            }
+
+            // Handle clicking the close button
+            const closeButton = target.closest('.details-panel .close-button');
+            if (closeButton) {
+                const detailsTargetSelector = closeButton.dataset.detailsTarget;
+                const detailsPanel = document.querySelector(detailsTargetSelector);
+                 if (detailsPanel) {
+                    detailsPanel.classList.add('hidden'); // Hide this panel
+                 }
+            }
+        });
+    </script>
+
+</body>
+</html>
